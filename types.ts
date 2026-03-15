@@ -1,8 +1,8 @@
 
 export enum Branch {
-  DELEGATE_1 = 'مندوب 1',
-  DELEGATE_2 = 'مندوب 2',
-  DELEGATE_3 = 'مندوب 3',
+  DELEGATE_1 = 'ابو اديب (مندوب)',
+  DELEGATE_2 = 'معتز (مندوب)',
+  DELEGATE_3 = 'عصام (مندوب)',
   OFFICE = 'المكتب الرئيسي'
 }
 
