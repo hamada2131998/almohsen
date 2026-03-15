@@ -14,6 +14,13 @@ const INITIAL_USERS: User[] = [
   { id: '5', name: 'المدير العام', role: UserRole.ADMIN, password: '5555' },
 ];
 
+// يمكنك وضع بيانات الربط هنا لتثبيتها للأبد
+const DEFAULTS = {
+  sheetUrl: 'https://script.google.com/macros/s/AKfycbytCr-ZsvUC1kBPIw5l68fFh5fIKFKBOn9kjZqsR6f2IHGw1PT2wO-H6fqMww4GgC_1iw/exec',
+  tgToken: '8669512643:AAFZ2II9XvFxFckhDoyxb-VYgkYvvYZ4FEo',
+  tgChatId: '5673659098'
+};
+
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>(() => {
@@ -26,9 +33,9 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'entry' | 'reports' | 'settings'>('dashboard');
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'loading'} | null>(null);
   
-  const [sheetUrl, setSheetUrl] = useState<string>(() => localStorage.getItem('google_sheet_url_mohsen') || '');
-  const [tgToken, setTgToken] = useState<string>(() => localStorage.getItem('tg_token_mohsen') || '');
-  const [tgChatId, setTgChatId] = useState<string>(() => localStorage.getItem('tg_chat_id_mohsen') || '');
+  const [sheetUrl, setSheetUrl] = useState<string>(() => localStorage.getItem('google_sheet_url_mohsen') || DEFAULTS.sheetUrl);
+  const [tgToken, setTgToken] = useState<string>(() => localStorage.getItem('tg_token_mohsen') || DEFAULTS.tgToken);
+  const [tgChatId, setTgChatId] = useState<string>(() => localStorage.getItem('tg_chat_id_mohsen') || DEFAULTS.tgChatId);
   
   const [errorLog, setErrorLog] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -262,8 +269,10 @@ const App: React.FC = () => {
           </div>
           <h1 className="text-2xl font-black text-slate-800">أسواق المحسن</h1>
           <div className="flex items-center justify-center gap-2 mt-2">
-            <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`}></span>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{isSyncing ? 'مزامنة...' : 'متصل'}</span>
+            <span className={`w-2 h-2 rounded-full ${!sheetUrl ? 'bg-rose-500 animate-pulse' : isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`}></span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${!sheetUrl ? 'text-rose-500' : 'text-slate-400'}`}>
+              {!sheetUrl ? 'غير مربوط سحابياً' : isSyncing ? 'مزامنة...' : 'متصل'}
+            </span>
           </div>
         </div>
         <nav className="flex-1 px-6 space-y-2">
@@ -358,11 +367,25 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="space-y-4 pt-4">
-                   <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b pb-2">إعدادات تليجرام</h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <input type="text" value={tgToken} onChange={(e) => setTgToken(e.target.value)} placeholder="Bot Token" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] outline-none" />
-                     <input type="text" value={tgChatId} onChange={(e) => setTgChatId(e.target.value)} placeholder="Chat ID" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] outline-none" />
+                   <div className="flex justify-between items-center border-b pb-2">
+                     <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest">إعدادات تليجرام</h3>
+                     <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer" className="text-[10px] font-bold text-indigo-500 hover:underline flex items-center gap-1">
+                       <Send size={10} /> كيف أحصل على الـ ID؟
+                     </a>
                    </div>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-400 mr-1">Bot Token</label>
+                       <input type="text" value={tgToken} onChange={(e) => setTgToken(e.target.value)} placeholder="مثال: 123456:ABC..." className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] outline-none focus:border-indigo-500" />
+                     </div>
+                     <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-400 mr-1">Chat ID</label>
+                       <input type="text" value={tgChatId} onChange={(e) => setTgChatId(e.target.value)} placeholder="مثال: 987654321" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] outline-none focus:border-indigo-500" />
+                     </div>
+                   </div>
+                   <p className="text-[10px] text-slate-400 font-bold leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                     💡 للحصول على Chat ID: ابحث عن بوت <span className="text-indigo-600">@userinfobot</span> في تليجرام وأرسل له أي رسالة، سيعطيك رقم الـ ID الخاص بك.
+                   </p>
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4">
