@@ -123,9 +123,22 @@ const App: React.FC = () => {
 
   const sendTelegramNotification = async (tx: any) => {
     if (!tgToken || !tgChatId) return;
-    const message = `🔔 *حركة مالية جديدة - أسواق المحسن*\n-------------------------\n📍 *المندوب:* ${tx.branch}\n👤 *الموظف:* ${tx.createdBy}\n💰 *المبلغ:* ${tx.amount} ر.س\n🏷️ *النوع:* ${tx.type}\n📝 *البيان:* ${tx.description}\n📅 *التاريخ:* ${tx.date}\n-------------------------\n✅ تم الرفع للسحابة بنجاح`;
+    
+    // استخدام HTML بدلاً من Markdown لضمان وصول الرسالة مهما كانت الرموز
+    const message = `
+<b>🔔 حركة مالية جديدة - أسواق المحسن</b>
+-------------------------
+📍 <b>المندوب:</b> ${tx.branch}
+👤 <b>الموظف:</b> ${tx.createdBy}
+💰 <b>المبلغ:</b> ${tx.amount} ر.س
+🏷️ <b>النوع:</b> ${tx.type}
+📝 <b>البيان:</b> ${tx.description}
+📅 <b>التاريخ:</b> ${tx.date}
+-------------------------
+✅ تم الرفع للسحابة بنجاح`.trim();
+
     try {
-      if (tx.attachment) {
+      if (tx.attachment && tx.attachment.length > 100) {
         const byteString = atob(tx.attachment.split(',')[1]);
         const mimeString = tx.attachment.split(',')[0].split(':')[1].split(';')[0];
         const ab = new ArrayBuffer(byteString.length);
@@ -135,16 +148,40 @@ const App: React.FC = () => {
         formData.append('chat_id', tgChatId);
         formData.append('photo', new Blob([ab], {type: mimeString}), 'invoice.jpg');
         formData.append('caption', message);
-        formData.append('parse_mode', 'Markdown');
+        formData.append('parse_mode', 'HTML');
         await fetch(`https://api.telegram.org/bot${tgToken}/sendPhoto`, { method: 'POST', body: formData });
       } else {
         await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: tgChatId, text: message, parse_mode: 'Markdown' })
+          body: JSON.stringify({ chat_id: tgChatId, text: message, parse_mode: 'HTML' })
         });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error('Telegram Error:', e);
+      showToast('خطأ في إرسال تنبيه تليجرام', 'error');
+    }
+  };
+
+  const testTelegram = async () => {
+    if (!tgToken || !tgChatId) return showToast('يرجى إدخال البيانات أولاً', 'error');
+    showToast('جاري إرسال رسالة تجريبية...', 'loading');
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chat_id: tgChatId, 
+          text: '✅ <b>تم ربط نظام أسواق المحسن بنجاح!</b>\nهذه رسالة تجريبية للتأكد من وصول التنبيهات.', 
+          parse_mode: 'HTML' 
+        })
+      });
+      const data = await res.json();
+      if (data.ok) showToast('وصلت الرسالة! الربط سليم');
+      else throw new Error(data.description);
+    } catch (e: any) {
+      showToast(`فشل الإرسال: ${e.message}`, 'error');
+    }
   };
 
   const handleAddTransaction = async (txData: any) => {
@@ -390,8 +427,11 @@ const App: React.FC = () => {
 
                 <div className="flex flex-col md:flex-row gap-4">
                   <button onClick={() => { localStorage.setItem('google_sheet_url_mohsen', sheetUrl); localStorage.setItem('tg_token_mohsen', tgToken); localStorage.setItem('tg_chat_id_mohsen', tgChatId); fetchTransactions(); showToast('تم حفظ الإعدادات'); }} className="flex-1 bg-slate-900 text-white p-6 rounded-3xl font-black shadow-xl hover:bg-black active:scale-95 transition-all">حفظ البيانات</button>
+                  <button onClick={testTelegram} className="flex-1 bg-emerald-600 text-white p-6 rounded-3xl font-black shadow-xl hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3">
+                    <Send size={20} /> تجربة إرسال تليجرام
+                  </button>
                   <button onClick={generateInviteLink} className="flex-1 bg-indigo-600 text-white p-6 rounded-3xl font-black shadow-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3">
-                    <LinkIcon size={20} /> نسخ رابط دعوة الموظفين
+                    <LinkIcon size={20} /> نسخ رابط دعوة
                   </button>
                 </div>
               </div>
