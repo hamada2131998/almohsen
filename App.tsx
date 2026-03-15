@@ -33,9 +33,18 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'entry' | 'reports' | 'settings'>('dashboard');
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'loading'} | null>(null);
   
-  const [sheetUrl, setSheetUrl] = useState<string>(() => localStorage.getItem('google_sheet_url_mohsen') || DEFAULTS.sheetUrl);
-  const [tgToken, setTgToken] = useState<string>(() => localStorage.getItem('tg_token_mohsen') || DEFAULTS.tgToken);
-  const [tgChatId, setTgChatId] = useState<string>(() => localStorage.getItem('tg_chat_id_mohsen') || DEFAULTS.tgChatId);
+  const [sheetUrl, setSheetUrl] = useState<string>(() => {
+    const saved = localStorage.getItem('google_sheet_url_mohsen');
+    return (saved && saved.length > 10) ? saved : DEFAULTS.sheetUrl;
+  });
+  const [tgToken, setTgToken] = useState<string>(() => {
+    const saved = localStorage.getItem('tg_token_mohsen');
+    return (saved && saved.length > 10) ? saved : DEFAULTS.tgToken;
+  });
+  const [tgChatId, setTgChatId] = useState<string>(() => {
+    const saved = localStorage.getItem('tg_chat_id_mohsen');
+    return (saved && saved.length > 3) ? saved : DEFAULTS.tgChatId;
+  });
   
   const [errorLog, setErrorLog] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -122,7 +131,9 @@ const App: React.FC = () => {
   }, [sheetUrl, currentUser, fetchTransactions]);
 
   const sendTelegramNotification = async (tx: any) => {
-    if (!tgToken || !tgChatId) return;
+    const token = tgToken.trim();
+    const chatId = tgChatId.trim();
+    if (!token || !chatId) return;
     
     // استخدام HTML بدلاً من Markdown لضمان وصول الرسالة مهما كانت الرموز
     const message = `
@@ -145,16 +156,16 @@ const App: React.FC = () => {
         const ia = new Uint8Array(ab);
         for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
         const formData = new FormData();
-        formData.append('chat_id', tgChatId);
+        formData.append('chat_id', chatId);
         formData.append('photo', new Blob([ab], {type: mimeString}), 'invoice.jpg');
         formData.append('caption', message);
         formData.append('parse_mode', 'HTML');
-        await fetch(`https://api.telegram.org/bot${tgToken}/sendPhoto`, { method: 'POST', body: formData });
+        await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: formData });
       } else {
-        await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: tgChatId, text: message, parse_mode: 'HTML' })
+          body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
         });
       }
     } catch (e) { 
@@ -164,24 +175,59 @@ const App: React.FC = () => {
   };
 
   const testTelegram = async () => {
-    if (!tgToken || !tgChatId) return showToast('يرجى إدخال البيانات أولاً', 'error');
-    showToast('جاري إرسال رسالة تجريبية...', 'loading');
+    const token = tgToken.trim();
+    const chatId = tgChatId.trim();
+    if (!token || !chatId) return showToast('يرجى إدخال البيانات أولاً', 'error');
+    showToast('جاري فحص الاتصال وتجربة الإرسال...', 'loading');
+    
     try {
-      const res = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+      // الخطوة 1: التأكد من صحة التوكن وجلب معلومات البوت
+      const botRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const botData = await botRes.json();
+      
+      if (!botData.ok) {
+        throw new Error(`التوكن (Token) غير صحيح: ${botData.description}`);
+      }
+
+      const botName = botData.result.first_name;
+
+      // الخطوة 2: تجربة إرسال رسالة
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          chat_id: tgChatId, 
-          text: '✅ <b>تم ربط نظام أسواق المحسن بنجاح!</b>\nهذه رسالة تجريبية للتأكد من وصول التنبيهات.', 
+          chat_id: chatId, 
+          text: `✅ <b>تم الاتصال بنجاح!</b>\n\nهذا النظام مرتبط الآن ببوت: <b>${botName}</b>\nسيتم إرسال التنبيهات إلى هذا الحساب فور تسجيل أي حركة.`, 
           parse_mode: 'HTML' 
         })
       });
+      
       const data = await res.json();
-      if (data.ok) showToast('وصلت الرسالة! الربط سليم');
-      else throw new Error(data.description);
+      if (data.ok) {
+        showToast(`نجح الاتصال ببوت (${botName}) وتم إرسال الرسالة!`);
+      } else {
+        if (data.description.includes('bot was blocked')) {
+          throw new Error('أنت قمت بحظر البوت. يرجى إلغاء الحظر والضغط على Start');
+        } else if (data.description.includes('chat not found')) {
+          throw new Error('الـ Chat ID غير صحيح أو أنك لم تضغط Start في البوت');
+        } else {
+          throw new Error(data.description);
+        }
+      }
     } catch (e: any) {
-      showToast(`فشل الإرسال: ${e.message}`, 'error');
+      showToast(`${e.message}`, 'error');
+      console.error('TG Test Error:', e);
     }
+  };
+
+  const resetSettings = () => {
+    localStorage.removeItem('google_sheet_url_mohsen');
+    localStorage.removeItem('tg_token_mohsen');
+    localStorage.removeItem('tg_chat_id_mohsen');
+    setSheetUrl(DEFAULTS.sheetUrl);
+    setTgToken(DEFAULTS.tgToken);
+    setTgChatId(DEFAULTS.tgChatId);
+    showToast('تمت استعادة الإعدادات الأصلية');
   };
 
   const handleAddTransaction = async (txData: any) => {
@@ -429,6 +475,9 @@ const App: React.FC = () => {
                   <button onClick={() => { localStorage.setItem('google_sheet_url_mohsen', sheetUrl); localStorage.setItem('tg_token_mohsen', tgToken); localStorage.setItem('tg_chat_id_mohsen', tgChatId); fetchTransactions(); showToast('تم حفظ الإعدادات'); }} className="flex-1 bg-slate-900 text-white p-6 rounded-3xl font-black shadow-xl hover:bg-black active:scale-95 transition-all">حفظ البيانات</button>
                   <button onClick={testTelegram} className="flex-1 bg-emerald-600 text-white p-6 rounded-3xl font-black shadow-xl hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3">
                     <Send size={20} /> تجربة إرسال تليجرام
+                  </button>
+                  <button onClick={resetSettings} className="flex-1 bg-rose-500 text-white p-6 rounded-3xl font-black shadow-xl hover:bg-rose-600 active:scale-95 transition-all flex items-center justify-center gap-3">
+                    <RefreshCw size={20} /> استعادة الافتراضي
                   </button>
                   <button onClick={generateInviteLink} className="flex-1 bg-indigo-600 text-white p-6 rounded-3xl font-black shadow-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3">
                     <LinkIcon size={20} /> نسخ رابط دعوة
